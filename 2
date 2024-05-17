@@ -1,0 +1,7 @@
+# Preprocess the data: fill NaN values with an empty string and convert to lowercase strings
+third_party_df['Third party'] = third_party_df['Third party'].fillna('').astype(str).str.lower()
+vendor_df['VENDOR'] = vendor_df['VENDOR'].fillna('').astype(str).str.lower()
+
+# Get unique names
+names1 = third_party_df['Third party'].unique()
+names2 = vendor_df['VENDOR'].unique()
