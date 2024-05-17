@@ -1,0 +1,15 @@
+# Perform matching
+matches = []
+for name1 in names1:
+    best_match = None
+    best_score = 0
+    for name2 in names2:
+        score = hybrid_match(name1, name2)
+        if score > best_score:
+            best_match = name2
+            best_score = score
+    if best_match:
+        matches.append({'Original': name1, 'Match': best_match, 'Confidence': best_score})
+
+# Convert matches to DataFrame
+names_match_output = pd.DataFrame(matches)
