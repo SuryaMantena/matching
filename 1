@@ -1,0 +1,58 @@
+import pandas as pd
+import jellyfish
+import textdistance
+
+# Load the data from the Excel files
+third_party_df = pd.read_excel('third_party.xlsx')
+vendor_df = pd.read_excel('vendor.xlsx')
+
+# Preprocess the data: convert to lowercase and remove duplicates
+names1 = third_party_df['Third party'].str.lower().unique()
+names2 = vendor_df['VENDOR'].str.lower().unique()
+
+# Initialize DataFrame for storing results
+names_match_output = pd.DataFrame(columns=['Original', 'Match', 'Confidence'])
+
+# Define the hybrid match function
+def hybrid_match(name1, name2, threshold=0.8):
+    # Exact Matching
+    if name1 == name2:
+        return 100
+    
+    # Phonetic Matching
+    if jellyfish.metaphone(name1) == jellyfish.metaphone(name2):
+        return 100
+    
+    # Damerau-Levenshtein Distance
+    dl_score = textdistance.damerau_levenshtein.normalized_similarity(name1, name2)
+    if dl_score >= threshold:
+        return int(dl_score * 100)
+    
+    # Jaccard Similarity
+    jaccard_score = textdistance.jaccard.normalized_similarity(name1.split(), name2.split())
+    if jaccard_score >= threshold:
+        return int(jaccard_score * 100)
+    
+    return 0
+
+# Perform matching
+for name1 in names1:
+    best_match = None
+    best_score = 0
+    for name2 in names2:
+        score = hybrid_match(name1, name2)
+        if score > best_score:
+            best_match = name2
+            best_score = score
+    if best_match:
+        names_match_output = names_match_output.append({
+            'Original': name1,
+            'Match': best_match,
+            'Confidence': best_score
+        }, ignore_index=True)
+
+# Save the results to a new Excel file
+output_file = 'matched_vendors.xlsx'
+names_match_output.to_excel(output_file, index=False)
+
+print(f'Matching completed. Results saved to {output_file}')
