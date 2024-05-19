@@ -1,0 +1,75 @@
+import pandas as pd
+from fuzzywuzzy import process, fuzz
+import re
+
+# Load Excel files
+vendors_df = pd.read_excel('Table2.xlsx')  # Adjust file name as needed
+suppliers_df = pd.read_excel('Table1.xlsx')  # Adjust file name as needed
+
+# Extract and standardize the business names
+def standardize_names(names):
+    standardized = []
+    stop_words = ['inc', 'llc', 'ltd', 'corporation', 'company', 'co']
+    pattern = r'\b(?:' + '|'.join(stop_words) + r')\b'
+
+    for name in names:
+        # Remove unwanted special characters and extra whitespace
+        name = re.sub(r'[^\w\s]', '', name).strip()
+        # Replace common abbreviations
+        name = re.sub(r'\bcorp\b', 'corporation', name)
+        # Remove stop words
+        name = re.sub(pattern, '', name).strip()
+        # Remove extra whitespace
+        name = re.sub(r'\s+', ' ', name).strip()
+        standardized.append(name)
+    
+    return standardized
+
+# Ensure the columns exist and convert to lowercase
+vendors_column = 'VENDOR'  # Adjust to match your actual column names
+suppliers_column = 'Third party'  # Adjust to match your actual column names
+
+if vendors_column not in vendors_df.columns or suppliers_column not in suppliers_df.columns:
+    print(f"Columns '{vendors_column}' or '{suppliers_column}' not found in the respective DataFrames.")
+    exit()
+
+# Standardize vendor and supplier names
+vendors_df[vendors_column + '_standardized'] = standardize_names(vendors_df[vendors_column].str.lower())
+suppliers_df[suppliers_column + '_standardized'] = standardize_names(suppliers_df[suppliers_column].str.lower())
+
+# Initialize DataFrames to store match results
+names1_match_output = pd.DataFrame(columns=['Original', 'Match', 'Confidence'])
+names2_match_output = pd.DataFrame(columns=['Original', 'Match', 'Confidence'])
+
+# Match names from vendors_df against suppliers_df
+for name in vendors_df[vendors_column + '_standardized']:
+    matches = process.extract(name, suppliers_df[suppliers_column + '_standardized'], scorer=fuzz.token_set_ratio, limit=1)
+    if matches:
+        print(f"Matches for {name}: {matches}")  # Debugging output
+        if len(matches) > 0:
+            first_match = matches[0]
+            print(f"First match for {name}: {first_match}")  # Debugging output
+            if isinstance(first_match, tuple) and len(first_match) == 2:
+                match, score = first_match
+                names1_match_output = pd.concat([names1_match_output, pd.DataFrame([{'Original': name, 'Match': match, 'Confidence': score}])], ignore_index=True)
+            else:
+                print(f"Unexpected match format for {name}: {first_match}")  # Debugging output
+
+# Match names from suppliers_df against vendors_df
+for name in suppliers_df[suppliers_column + '_standardized']:
+    matches = process.extract(name, vendors_df[vendors_column + '_standardized'], scorer=fuzz.token_set_ratio, limit=1)
+    if matches:
+        print(f"Matches for {name}: {matches}")  # Debugging output
+        if len(matches) > 0:
+            first_match = matches[0]
+            print(f"First match for {name}: {first_match}")  # Debugging output
+            if isinstance(first_match, tuple) and len(first_match) == 2:
+                match, score = first_match
+                names2_match_output = pd.concat([names2_match_output, pd.DataFrame([{'Original': name, 'Match': match, 'Confidence': score}])], ignore_index=True)
+            else:
+                print(f"Unexpected match format for {name}: {first_match}")  # Debugging output
+
+# Save results to Excel files
+names1_match_output.to_excel('names1_match_output.xlsx', index=False)
+names2_match_output.to_excel('names2_match_output.xlsx', index=False)
+print("Match results saved successfully.")
