@@ -1,0 +1,60 @@
+import pandas as pd
+from fuzzywuzzy import process, fuzz
+import re
+
+# Load Excel files
+try:
+    vendors_df = pd.read_excel('vendors.xlsx')
+    suppliers_df = pd.read_excel('suppliers.xlsx')
+except Exception as e:
+    print(f"Error loading Excel files: {e}")
+    exit()
+
+# Extract and standardize the business names
+def standardize_names(names):
+    standardized = []
+    stop_words = ['inc', 'llc', 'ltd', 'corporation', 'company', 'co']
+    pattern = r'\b(?:' + '|'.join(stop_words) + r')\b'
+
+    for name in names:
+        # Remove unwanted special characters and extra whitespace
+        name = re.sub(r'[^\w\s]', '', name).strip()
+        # Replace common abbreviations
+        name = re.sub(r'\bcorp\b', 'corporation', name)
+        # Remove stop words
+        name = re.sub(pattern, '', name).strip()
+        # Remove extra whitespace
+        name = re.sub(r'\s+', ' ', name).strip()
+        standardized.append(name)
+    
+    return standardized
+
+# Standardize vendor and supplier names
+vendors_df['vendor_standardized'] = standardize_names(vendors_df['vendor'].str.lower().unique())
+suppliers_df['supplier_standardized'] = standardize_names(suppliers_df['supplier'].str.lower().unique())
+
+# Initialize DataFrames to store match results
+names1_match_output = pd.DataFrame(columns=['Original', 'Match', 'Confidence'])
+names2_match_output = pd.DataFrame(columns=['Original', 'Match', 'Confidence'])
+
+# Match names from vendors_df against suppliers_df
+for name in vendors_df['vendor_standardized']:
+    matches = process.extract(name, suppliers_df['supplier_standardized'], scorer=fuzz.token_set_ratio, limit=1)
+    if matches:
+        match, score = matches[0]
+        names1_match_output = pd.concat([names1_match_output, pd.DataFrame([{'Original': name, 'Match': match, 'Confidence': score}])], ignore_index=True)
+
+# Match names from suppliers_df against vendors_df
+for name in suppliers_df['supplier_standardized']:
+    matches = process.extract(name, vendors_df['vendor_standardized'], scorer=fuzz.token_set_ratio, limit=1)
+    if matches:
+        match, score = matches[0]
+        names2_match_output = pd.concat([names2_match_output, pd.DataFrame([{'Original': name, 'Match': match, 'Confidence': score}])], ignore_index=True)
+
+# Save results to Excel files
+try:
+    names1_match_output.to_excel('names1_match_output.xlsx', index=False)
+    names2_match_output.to_excel('names2_match_output.xlsx', index=False)
+    print("Match results saved successfully.")
+except Exception as e:
+    print(f"Error saving match results: {e}")
