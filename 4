@@ -1,0 +1,40 @@
+import pandas as pd
+from fuzzywuzzy import fuzz, process
+import re
+
+# Function to standardize business names
+def standardize_names(df, column):
+    # Convert to lowercase
+    df[column] = df[column].str.lower()
+    # Remove unwanted special characters
+    df[column] = df[column].str.replace('[^\w\s]', '', regex=True).str.strip()
+    # Replace common abbreviations
+    df[column] = df[column].str.replace(r'\bcorp\b', 'corporation', regex=True)
+    # Remove stop words
+    stop_words = ['inc', 'llc', 'ltd', 'corporation', 'company', 'co']
+    pattern = r'\b(?:' + '|'.join(stop_words) + r')\b'
+    df[column] = df[column].str.replace(pattern, '', regex=True)
+    # Remove extra whitespace
+    df[column] = df[column].str.replace('\s+', ' ', regex=True).str.strip()
+    return df
+
+# Load Excel files
+vendors_df = pd.read_excel('vendors.xlsx')
+suppliers_df = pd.read_excel('suppliers.xlsx')
+
+# Standardize data
+vendors_df = standardize_names(vendors_df, 'vendor')
+suppliers_df = standardize_names(suppliers_df, 'supplier')
+
+# Perform fuzzy matching
+results = []
+
+for vendor in vendors_df['vendor']:
+    match, score = process.extractOne(vendor, suppliers_df['supplier'], scorer=fuzz.token_sort_ratio)
+    results.append((vendor, match, score))
+
+# Create results DataFrame
+results_df = pd.DataFrame(results, columns=['vendor', 'match', 'confidence_score'])
+
+# Save results to an Excel file
+results_df.to_excel('matched_results.xlsx', index=False)
