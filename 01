@@ -1,0 +1,33 @@
+import pandas as pd
+from rapidfuzz import process, fuzz
+
+# Load the Excel files
+vr_file_path = 'path_to_vr_file.xlsx'  # Replace with your VR file path
+ecaf_file_path = 'path_to_ecaf_file.xlsx'  # Replace with your eCAF file path
+
+vr_df = pd.read_excel(vr_file_path, sheet_name='Sheet1')  # Adjust sheet_name if necessary
+ecaf_df = pd.read_excel(ecaf_file_path, sheet_name='Sheet1')  # Adjust sheet_name if necessary
+
+# Define the columns containing vendor names
+vr_column = 'Vendor'  # Adjust if your column names are different
+ecaf_column = 'Vendor'  # Adjust if your column names are different
+
+# Function to perform fuzzy matching
+def fuzzy_match(row, choices, scorer=fuzz.ratio, limit=1):
+    """Fuzzy match a single row to a list of choices."""
+    match, score = process.extractOne(row, choices, scorer=scorer)
+    return pd.Series([match, score])
+
+# Apply fuzzy matching
+ecaf_choices = ecaf_df[ecaf_column].tolist()
+matches = vr_df[vr_column].apply(fuzzy_match, choices=ecaf_choices)
+
+# Combine the results
+matches.columns = ['Match', 'Confidence']
+result_df = vr_df.join(matches)
+
+# Save the result to an Excel file
+output_file_path = 'matched_results.xlsx'
+result_df.to_excel(output_file_path, index=False, sheet_name='Results')
+
+print(f'Results saved to {output_file_path}')
