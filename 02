@@ -1,0 +1,57 @@
+import pandas as pd
+from rapidfuzz import process, fuzz
+import re
+from ayx import Alteryx
+import pprint
+
+# Load data from Alteryx
+names1_df = Alteryx.read('#1')
+names2_df = Alteryx.read('#2')
+
+# Standardize names using regex
+def standardize_names(names):
+    standardized = []
+    stop_words = ['inc', 'llc', 'ltd', 'corporation', 'company', 'co']
+    pattern = r'\b(?:' + '|'.join(stop_words) + r')\b'
+
+    for name in names:
+        # Remove unwanted special characters and extra whitespace
+        name = re.sub(r'[^\w\s]', '', name).strip()
+        # Remove stop words
+        name = re.sub(pattern, '', name).strip()
+        # Remove extra whitespace
+        name = re.sub(r'\s+', ' ', name).strip()
+        standardized.append(name.lower())
+
+    return standardized
+
+# Standardize and get unique lowercase names
+names1 = standardize_names(names1_df['Third party'].unique())
+names2 = standardize_names(names2_df['VENDOR'].unique())
+
+# Initialize DataFrames to store match results
+names1_match_output = pd.DataFrame(columns=['Original', 'Match', 'Confidence'])
+names2_match_output = pd.DataFrame(columns=['Original', 'Match', 'Confidence'])
+
+# Pretty printer for debugging
+pp = pprint.PrettyPrinter(indent=4)
+
+# Match names from names1 against names2
+for name in names1:
+    matches = process.extract(name, names2, scorer=fuzz.token_set_ratio, limit=1)
+    pp.pprint(matches)  # Debugging output
+    if matches and len(matches[0]) >= 2:
+        match, score = matches[0][0], matches[0][1]
+        names1_match_output = names1_match_output.append({'Original': name, 'Match': match, 'Confidence': score}, ignore_index=True)
+
+# Match names from names2 against names1
+for name in names2:
+    matches = process.extract(name, names1, scorer=fuzz.token_set_ratio, limit=1)
+    pp.pprint(matches)  # Debugging output
+    if matches and len(matches[0]) >= 2:
+        match, score = matches[0][0], matches[0][1]
+        names2_match_output = names2_match_output.append({'Original': name, 'Match': match, 'Confidence': score}, ignore_index=True)
+
+# Write results to Alteryx
+Alteryx.write(names1_match_output, 1)
+Alteryx.write(names2_match_output, 2)
